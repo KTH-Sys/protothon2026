@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Travel Roadmap — Prototype</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧭%3C/text%3E%3C/svg%3E" />
+
+  <!-- Tailwind (JIT, browser build) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React + lucide-react (ESM via esm.sh) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.3.1",
+        "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
+        "lucide-react": "https://esm.sh/lucide-react@0.383.0?deps=react@18.3.1,react-dom@18.3.1"
+      }
+    }
+  </script>
+
+  <!-- Babel standalone (so we can write JSX inline) -->
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+
+  <style>
+    html, body, #root { height: 100%; }
+    body { margin: 0; background: #FFFFFF; }
+    /* Brief loader before Babel finishes compiling */
+    #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-family: ui-sans-serif, system-ui, sans-serif; color: #000000; opacity: 0.5; font-size: 13px;
+            letter-spacing: 0.18em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="boot">Loading roadmap…</div>
+
+  <script type="text/babel" data-type="module" data-presets="react">
+    import React, { useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import {
+      Lock, CheckCircle2, Circle, ChevronDown, ChevronRight,
+      Plane, Hotel, FileText, Package, MapPin, Clock, Wallet,
+      Train, Sparkles, AlertCircle, Compass, ArrowRight, ArrowLeft,
+      Check, ExternalLink, Bot, Hand, Calendar, Users, Globe,
+      Sun, Coffee, Moon, Camera, Utensils, Building2, Mountain,
+      Shield, Languages, Cloud, Star, Eye, Loader2, Map, Briefcase,
+      CreditCard, Heart, ShieldCheck, Footprints,
+    } from "lucide-react";
+
+    /* =========================================================
+       DESIGN TOKENS — warm "expedition logbook" aesthetic
+       ========================================================= */
+    const FONT_CSS = `
+      @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=swap');
+      .font-display { font-family: 'Instrument Serif', 'Times New Roman', serif; font-weight: 400; letter-spacing: -0.01em; }
+      .font-italic-display { font-family: 'Instrument Serif', serif; font-style: italic; }
+      .font-body { font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; }
+      .tracking-micro { letter-spacing: 0.18em; }
+      @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      .anim-fade { animation: fadeUp 0.5s ease-out both; }
+    `;
+
+    /* =========================================================
+       MOCK DATA
+       ========================================================= */
+    const DEFAULT_SURVEY = {
+      citizenship: "India",
+      currentCountry: "India",
+      destination: "Japan — Tokyo & Kyoto",
+      startDate: "Mar 15, 2026",
+      tripLength: 10,
+      budget: "Mid-range",
+      budgetAmount: 2800,
+      styles: ["Food", "Culture", "City"],
+      party: "Couple",
+      hotelPref: "Boutique, walkable",
+      flightPref: "Direct preferred, economy",
+      visaHelp: true,
+      concerns: ["Language barrier"],
+    };
+
+    const STYLE_OPTIONS = [
+      { id: "Adventure", icon: Mountain },
+      { id: "City", icon: Building2 },
+      { id: "Nature", icon: Mountain },
+      { id: "Food", icon: Utensils },
+      { id: "Culture", icon: Camera },
+      { id: "Nightlife", icon: Moon },
+      { id: "Relaxing", icon: Sun },
+      { id: "Luxury", icon: Sparkles },
+      { id: "Budget", icon: Wallet },
+    ];
+
+    const buildInitialRoadmap = () => [
+      {
+        id: "visa", number: 1, icon: FileText,
+        title: "Visa Preparation",
+        subtitle: "Indian passport → Japan tourist visa",
+        duration: "~2–4 weeks", status: "in-progress", locked: false,
+        blurb: "Japan requires a tourist visa for Indian passport holders. We'll walk you through documents, the application, and post-submission follow-ups.",
+        tasks: [
+          { id: "v1", title: "Confirm visa is required for your route", type: "info", done: true },
+          { id: "v2", title: "Open the official VFS Global / Embassy of Japan portal", type: "link", href: "#", done: true },
+          { id: "v3", title: "Passport valid 6+ months past return date", type: "check", done: true },
+          { id: "v4", title: "Recent passport-size photo (4.5×4.5cm, white background)", type: "doc", done: false },
+          { id: "v5", title: "Bank statement — last 3 months", type: "doc", done: false },
+          { id: "v6", title: "Travel insurance certificate", type: "doc", done: false },
+          { id: "v7", title: "Tentative flight + hotel reservation (refundable)", type: "doc", done: false },
+          { id: "v8", title: "Submit application at VFS center", type: "action", done: false },
+          { id: "v9", title: "I submitted my visa application", type: "confirm", done: false },
+          { id: "v10", title: "My visa was approved", type: "confirm", done: false },
+        ],
+      },
+      {
+        id: "flight", number: 2, icon: Plane,
+        title: "Flight Booking",
+        subtitle: "Delhi (DEL) → Tokyo (HND/NRT)",
+        duration: "~1–2 days", status: "locked", locked: true,
+        unlockReason: "Unlocks once visa is approved (or you can override).",
+        blurb: "Compare cheapest, fastest, and best-value options. Book yourself, or have the agent draft a booking for your review.",
+        bookingStage: true,
+        tasks: [
+          { id: "f1", title: "Search across Skyscanner, Google Flights, ITA Matrix", type: "info", done: false },
+          { id: "f2", title: "Compare cheapest / fastest / best-value", type: "compare", done: false },
+          { id: "f3", title: "Verify baggage rules for your fare class", type: "check", done: false },
+          { id: "f4", title: "Layover ≥ 2h if changing terminals", type: "warn", done: false },
+          { id: "f5", title: "Choose preferred flight", type: "action", done: false },
+          { id: "f6", title: "I booked my flight", type: "confirm", done: false },
+        ],
+      },
+      {
+        id: "hotel", number: 3, icon: Hotel,
+        title: "Hotel Booking",
+        subtitle: "5 nights Tokyo · 4 nights Kyoto",
+        duration: "~1–2 days", status: "locked", locked: true,
+        unlockReason: "Unlocks once flight is booked (or you can override).",
+        blurb: "We recommend neighborhoods first, then surface 3 hotels per budget tier with cancellation policy and walk-time to top sights.",
+        bookingStage: true,
+        tasks: [
+          { id: "h1", title: "Pick neighborhoods — Shibuya / Shinjuku / Asakusa", type: "info", done: false },
+          { id: "h2", title: "Compare 3 hotels across budget / mid / premium", type: "compare", done: false },
+          { id: "h3", title: "Verify cancellation policy (free until X)", type: "check", done: false },
+          { id: "h4", title: "Check walking time to nearest train station", type: "check", done: false },
+          { id: "h5", title: "I booked my hotel", type: "confirm", done: false },
+        ],
+      },
+      {
+        id: "prep", number: 4, icon: Package,
+        title: "Pre-Trip Checklist",
+        subtitle: "Two weeks before departure",
+        duration: "~1 week", status: "locked", locked: true,
+        unlockReason: "Unlocks once flights and hotels are confirmed.",
+        blurb: "Logistics, money, packing, and the small things that ruin trips when forgotten.",
+        tasks: [
+          { id: "p1", title: "Buy travel insurance", type: "action", done: false },
+          { id: "p2", title: "Download offline Google Maps for Tokyo & Kyoto", type: "action", done: false },
+          { id: "p3", title: "Order foreign currency or set up Wise / Revolut", type: "action", done: false },
+          { id: "p4", title: "Buy Type-A plug adapter", type: "action", done: false },
+          { id: "p5", title: "Save embassy and emergency numbers", type: "action", done: false },
+          { id: "p6", title: "Pack documents (passport, visa, insurance, hotel printouts)", type: "doc", done: false },
+          { id: "p7", title: "Pack clothes for 12–18°C, light rain possible", type: "doc", done: false },
+          { id: "p8", title: "Pack medication + prescriptions", type: "doc", done: false },
+          { id: "p9", title: "Re-check weather 48h before departure", type: "check", done: false },
+          { id: "p10", title: "I am ready for the trip", type: "confirm", done: false },
+        ],
+      },
+      {
+        id: "trip", number: 5, icon: Compass,
+        title: "Day-by-Day Travel",
+        subtitle: "10 days · daily assistant mode",
+        duration: "On-trip", status: "locked", locked: true,
+        unlockReason: "Unlocks at departure. Open daily for live guidance.",
+        blurb: "Each morning, open the day to see your timeline, current next task, budget so far, and a backup plan if it rains.",
+        tripStage: true, tasks: [],
+      },
+    ];
+
+    const MOCK_FLIGHTS = [
+      { tag: "Cheapest", airline: "AirAsia X via KUL", price: 612, duration: "16h 40m", stops: "1 stop", note: "Long layover — check transit visa rules.", warn: true },
+      { tag: "Best value", airline: "Vistara → ANA codeshare", price: 845, duration: "11h 25m", stops: "1 stop · HKG", note: "Reasonable layover, full bags included." },
+      { tag: "Fastest", airline: "Air India direct", price: 1120, duration: "8h 05m", stops: "Direct", note: "Direct, no transit hassle. Worth $275 over option 2?" },
+    ];
+
+    const MOCK_HOTELS = [
+      { tier: "Budget", name: "Wise Owl Hostels Shibuya", price: 38, area: "Shibuya", walk: "4 min to station", cxl: "Free until 24h before", rating: 8.9 },
+      { tier: "Mid", name: "The Millennials Shibuya", price: 92, area: "Shibuya", walk: "6 min to station", cxl: "Free until 48h before", rating: 9.1 },
+      { tier: "Premium", name: "Trunk(Hotel) Cat Street", price: 240, area: "Harajuku", walk: "8 min to Meiji-jingumae", cxl: "Free until 72h before", rating: 9.4 },
+    ];
+
+    const MOCK_DAYS = [
+      {
+        day: 1, label: "Mar 15", title: "Arrival & Tokyo orientation",
+        weather: "Sunny · 14° / 7°C", spent: 0, estimated: 95,
+        notes: "Take it easy — jet lag is real. Don't over-plan.",
+        blocks: [
+          { period: "Morning", icon: Sun, items: [
+            { time: "08:00", title: "Arrive Haneda Airport (HND)", location: "HND Terminal 3", cost: 0, transport: "—", notes: "Have hotel address printed in Japanese.", backup: null },
+            { time: "08:30", title: "Pass immigration & customs", location: "HND", cost: 0, transport: "—", notes: "Disembarkation card pre-filled? Have it ready.", backup: null },
+            { time: "09:15", title: "Activate eSIM (Ubigi/Airalo)", location: "Arrivals lounge", cost: 18, transport: "—", notes: "Test it before leaving the airport.", backup: "Buy a SIM at the airport kiosk." },
+            { time: "09:45", title: "Take Keikyu Line to Shibuya", location: "HND → Shibuya", cost: 5, transport: "Train · ~30 min", notes: "Use Suica/Pasmo from a vending machine.", backup: "Airport limousine bus, ¥1,200." },
+          ]},
+          { period: "Afternoon", icon: Coffee, items: [
+            { time: "12:00", title: "Drop bags at hotel (early check-in not guaranteed)", location: "The Millennials Shibuya", cost: 0, transport: "Walk", notes: "If room not ready, leave luggage at front desk.", backup: null },
+            { time: "13:00", title: "Lunch at Ichiran Shibuya", location: "Shibuya", cost: 12, transport: "Walk · 5 min", notes: "Order via vending machine. Solo booths.", backup: "Tendon Tenya for cheaper tempura." },
+            { time: "14:30", title: "Walk through Shibuya Crossing & Center-gai", location: "Shibuya", cost: 0, transport: "Walk", notes: "Yes, do the crossing. Then climb Magnet rooftop.", backup: null },
+            { time: "16:00", title: "Meiji Jingu shrine (easy first attraction)", location: "Yoyogi", cost: 0, transport: "Walk · 15 min", notes: "Calm, forested. Closes at sunset.", backup: "Yoyogi Park if shrine is crowded." },
+          ]},
+          { period: "Evening", icon: Moon, items: [
+            { time: "18:30", title: "Dinner — izakaya in Nonbei Yokocho", location: "Shibuya", cost: 35, transport: "Walk · 6 min", notes: "Tiny alley with 1950s-era bars. Order yakitori sets.", backup: "Uobei sushi (¥110/plate) if alleys feel intimidating." },
+            { time: "20:00", title: "Light walk + convenience-store dessert", location: "Shibuya", cost: 5, transport: "Walk", notes: "FamilyMart's Famichiki is famous for a reason.", backup: null },
+            { time: "22:00", title: "Plan tomorrow before bed", location: "Hotel", cost: 0, transport: "—", notes: "Open Day 2. Pin transit cards. Sleep early.", backup: null },
+          ]},
+        ],
+      },
+      {
+        day: 2, label: "Mar 16", title: "Asakusa, Akihabara, sumida-river evening",
+        weather: "Cloudy · 13° / 6°C", spent: 0, estimated: 110,
+        notes: "Lots of walking. Comfortable shoes, day-pack only.",
+        blocks: [
+          { period: "Morning", icon: Sun, items: [
+            { time: "08:00", title: "Hotel breakfast", location: "Hotel", cost: 0, transport: "—", notes: "Included in your booking.", backup: null },
+            { time: "09:30", title: "Senso-ji Temple & Nakamise-dori", location: "Asakusa", cost: 0, transport: "Train · ~30 min", notes: "Arrive before 10 to beat tour buses.", backup: null },
+          ]},
+          { period: "Afternoon", icon: Coffee, items: [
+            { time: "12:30", title: "Lunch — tempura at Daikokuya", location: "Asakusa", cost: 22, transport: "Walk · 4 min", notes: "Cash only.", backup: "Asakusa Imahan beef bowls." },
+            { time: "15:00", title: "Akihabara — electronics & retro arcades", location: "Akihabara", cost: 10, transport: "Train · 12 min", notes: "Super Potato store, 5th floor.", backup: null },
+          ]},
+          { period: "Evening", icon: Moon, items: [
+            { time: "19:00", title: "Sumida river cruise + Tokyo Skytree view", location: "Sumida", cost: 25, transport: "Train · 18 min", notes: "Buy ticket online to skip queue.", backup: "View from Asahi Beer Hall — free." },
+          ]},
+        ],
+      },
+    ];
+
+    /* =========================================================
+       ROOT APP
+       ========================================================= */
+    function App() {
+      const [screen, setScreen] = useState("welcome");
+      const [surveyStep, setSurveyStep] = useState(0);
+      const [survey, setSurvey] = useState(DEFAULT_SURVEY);
+      const [stages, setStages] = useState(buildInitialRoadmap());
+      const [expandedStage, setExpandedStage] = useState("visa");
+      const [activeView, setActiveView] = useState("roadmap");
+      const [selectedDay, setSelectedDay] = useState(1);
+      const [bookingMode, setBookingMode] = useState({ flight: "manual", hotel: "manual" });
+      const [agentRunning, setAgentRunning] = useState(false);
+
+      const totalTasks = stages.reduce((sum, s) => sum + s.tasks.length, 0) || 1;
+      const doneTasks = stages.reduce((sum, s) => sum + s.tasks.filter((t) => t.done).length, 0);
+      const progress = Math.round((doneTasks / totalTasks) * 100);
+
+      const toggleTask = (stageId, taskId) => {
+        setStages((prev) =>
+          prev.map((s) => {
+            if (s.id !== stageId) return s;
+            const tasks = s.tasks.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t));
+            const allDone = tasks.length > 0 && tasks.every((t) => t.done);
+            const anyDone = tasks.some((t) => t.done);
+            let status = s.status;
+            if (allDone) status = "completed";
+            else if (anyDone && status !== "locked") status = "in-progress";
+            return { ...s, tasks, status };
+          })
+        );
+      };
+
+      const overrideUnlock = (stageId) => {
+        setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, locked: false, status: "in-progress" } : s)));
+      };
+
+      const updateSurvey = (patch) => setSurvey((s) => ({ ...s, ...patch }));
+
+      const startGenerating = () => {
+        setScreen("generating");
+        setTimeout(() => setScreen("app"), 1900);
+      };
+
+      return (
+        <div className="min-h-screen w-full bg-[#FFFFFF] text-[#000000] font-body">
+          <style>{FONT_CSS}</style>
+
+          {screen === "welcome" && <Welcome onStart={() => setScreen("survey")} />}
+
+          {screen === "survey" && (
+            <Survey
+              step={surveyStep} setStep={setSurveyStep}
+              survey={survey} updateSurvey={updateSurvey}
+              onComplete={startGenerating} onBack={() => setScreen("welcome")}
+            />
+          )}
+
+          {screen === "generating" && <Generating />}
+
+          {screen === "app" && (
+            <Main
+              survey={survey} stages={stages} progress={progress}
+              doneTasks={doneTasks} totalTasks={totalTasks}
+              expandedStage={expandedStage} setExpandedStage={setExpandedStage}
+              activeView={activeView} setActiveView={setActiveView}
+              selectedDay={selectedDay} setSelectedDay={setSelectedDay}
+              bookingMode={bookingMode} setBookingMode={setBookingMode}
+              toggleTask={toggleTask} overrideUnlock={overrideUnlock}
+              agentRunning={agentRunning} setAgentRunning={setAgentRunning}
+              onRestart={() => {
+                setScreen("welcome"); setSurveyStep(0);
+                setStages(buildInitialRoadmap());
+                setExpandedStage("visa"); setActiveView("roadmap");
+              }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    /* =========================================================
+       WELCOME
+       ========================================================= */
+    function Welcome({ onStart }) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6 anim-fade">
+          <div className="max-w-2xl text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#000000]/5 text-[#000000]/70 text-xs tracking-micro uppercase mb-8">
+              <Compass className="w-3.5 h-3.5" /> A travel roadmap, not just an itinerary
+            </div>
+            <h1 className="font-display text-7xl md:text-8xl leading-[0.95] mb-6">
+              Your trip,<br />
+              <span className="font-italic-display text-[#000000]">stage by stage.</span>
+            </h1>
+            <p className="text-lg text-[#000000]/70 max-w-xl mx-auto mb-10 leading-relaxed">
+              Tell us where you're going. We'll turn your survey into an ordered execution roadmap —
+              visa, flights, hotels, packing, and a daily on-trip assistant. You confirm every step.
+            </p>
+            <button
+              onClick={onStart}
+              className="group inline-flex items-center gap-3 bg-[#000000] text-[#FFFFFF] px-8 py-4 rounded-full text-sm tracking-wide hover:bg-[#000000]/80 transition-colors"
+            >
+              Begin my roadmap
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+            <div className="flex items-center justify-center gap-6 mt-12 text-xs text-[#000000]/50 tracking-micro uppercase flex-wrap">
+              <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> No auto-bookings</span>
+              <span className="flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> You verify each stage</span>
+              <span className="flex items-center gap-1.5"><Map className="w-3.5 h-3.5" /> Daily on-trip mode</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       SURVEY
+       ========================================================= */
+    const SURVEY_STEPS = ["Where", "When", "How", "Preferences"];
+
+    function Survey({ step, setStep, survey, updateSurvey, onComplete, onBack }) {
+      const next = () => (step < SURVEY_STEPS.length - 1 ? setStep(step + 1) : onComplete());
+      const back = () => (step > 0 ? setStep(step - 1) : onBack());
+
+      return (
+        <div className="min-h-screen flex flex-col px-6 py-10 anim-fade">
+          <div className="max-w-2xl w-full mx-auto flex-1 flex flex-col">
+            <div className="flex items-center justify-between mb-12">
+              <div className="text-xs tracking-micro uppercase text-[#000000]/50">
+                Step {step + 1} of {SURVEY_STEPS.length} · {SURVEY_STEPS[step]}
+              </div>
+              <div className="flex gap-1.5">
+                {SURVEY_STEPS.map((_, i) => (
+                  <div key={i} className={`h-1 rounded-full transition-all ${i <= step ? "w-8 bg-[#000000]" : "w-4 bg-[#000000]/15"}`} />
+                ))}
+              </div>
+            </div>
+            <div className="flex-1">
+              {step === 0 && <StepWhere survey={survey} update={updateSurvey} />}
+              {step === 1 && <StepWhen survey={survey} update={updateSurvey} />}
+              {step === 2 && <StepHow survey={survey} update={updateSurvey} />}
+              {step === 3 && <StepPrefs survey={survey} update={updateSurvey} />}
+            </div>
+            <div className="flex items-center justify-between mt-12 pt-6 border-t border-[#000000]/10">
+              <button onClick={back} className="flex items-center gap-2 text-sm text-[#000000]/60 hover:text-[#000000] transition">
+                <ArrowLeft className="w-4 h-4" /> Back
+              </button>
+              <button onClick={next} className="flex items-center gap-2 bg-[#000000] text-[#FFFFFF] px-6 py-3 rounded-full text-sm hover:bg-[#000000]/80 transition">
+                {step === SURVEY_STEPS.length - 1 ? "Generate roadmap" : "Continue"}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function FieldLabel({ children }) {
+      return <label className="block text-xs tracking-micro uppercase text-[#000000]/50 mb-2">{children}</label>;
+    }
+
+    function TextInput({ value, onChange, placeholder }) {
+      return (
+        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          className="w-full bg-transparent border-b border-[#000000]/20 focus:border-[#000000] py-2.5 text-lg outline-none transition-colors placeholder:text-[#000000]/30" />
+      );
+    }
+
+    function Pill({ active, onClick, children, icon: Icon }) {
+      return (
+        <button onClick={onClick}
+          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm border transition-colors ${
+            active ? "bg-[#000000] text-[#FFFFFF] border-[#000000]"
+                   : "bg-transparent text-[#000000]/70 border-[#000000]/20 hover:border-[#000000]/50"
+          }`}>
+          {Icon && <Icon className="w-3.5 h-3.5" />}
+          {children}
+        </button>
+      );
+    }
+
+    function StepWhere({ survey, update }) {
+      return (
+        <div className="space-y-10">
+          <h2 className="font-display text-5xl md:text-6xl leading-tight">
+            Where are you <span className="font-italic-display text-[#000000]">heading</span>?
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div><FieldLabel>Country of citizenship</FieldLabel>
+              <TextInput value={survey.citizenship} onChange={(v) => update({ citizenship: v })} placeholder="e.g. India" /></div>
+            <div><FieldLabel>Currently in</FieldLabel>
+              <TextInput value={survey.currentCountry} onChange={(v) => update({ currentCountry: v })} placeholder="e.g. India" /></div>
+            <div className="md:col-span-2"><FieldLabel>Destination — country & cities</FieldLabel>
+              <TextInput value={survey.destination} onChange={(v) => update({ destination: v })} placeholder="e.g. Japan — Tokyo & Kyoto" /></div>
+          </div>
+          <p className="text-sm text-[#000000]/50 italic">
+            We use citizenship + destination to determine whether you need a visa, and if so, which one.
+          </p>
+        </div>
+      );
+    }
+
+    function StepWhen({ survey, update }) {
+      return (
+        <div className="space-y-10">
+          <h2 className="font-display text-5xl md:text-6xl leading-tight">
+            And <span className="font-italic-display text-[#000000]">when</span>?
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div><FieldLabel>Start date</FieldLabel>
+              <TextInput value={survey.startDate} onChange={(v) => update({ startDate: v })} placeholder="e.g. Mar 15, 2026" /></div>
+            <div><FieldLabel>Trip length (days)</FieldLabel>
+              <TextInput value={String(survey.tripLength)} onChange={(v) => update({ tripLength: Number(v) || 0 })} placeholder="10" /></div>
+            <div className="md:col-span-2">
+              <FieldLabel>Approximate budget (USD)</FieldLabel>
+              <TextInput value={String(survey.budgetAmount)} onChange={(v) => update({ budgetAmount: Number(v) || 0 })} placeholder="2800" />
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {["Budget", "Mid-range", "Premium", "Luxury"].map((b) => (
+                  <Pill key={b} active={survey.budget === b} onClick={() => update({ budget: b })}>{b}</Pill>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function StepHow({ survey, update }) {
+      const toggleStyle = (s) => {
+        const next = survey.styles.includes(s) ? survey.styles.filter((x) => x !== s) : [...survey.styles, s];
+        update({ styles: next });
+      };
+      return (
+        <div className="space-y-10">
+          <h2 className="font-display text-5xl md:text-6xl leading-tight">
+            Your <span className="font-italic-display text-[#000000]">style</span> of travel?
+          </h2>
+          <div>
+            <FieldLabel>Pick all that apply</FieldLabel>
+            <div className="flex flex-wrap gap-2">
+              {STYLE_OPTIONS.map(({ id, icon }) => (
+                <Pill key={id} icon={icon} active={survey.styles.includes(id)} onClick={() => toggleStyle(id)}>{id}</Pill>
+              ))}
+            </div>
+          </div>
+          <div>
+            <FieldLabel>Travelling as</FieldLabel>
+            <div className="flex flex-wrap gap-2">
+              {["Solo", "Couple", "Friends", "Family"].map((p) => (
+                <Pill key={p} active={survey.party === p} onClick={() => update({ party: p })}>{p}</Pill>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function StepPrefs({ survey, update }) {
+      const toggleConcern = (c) => {
+        const next = survey.concerns.includes(c) ? survey.concerns.filter((x) => x !== c) : [...survey.concerns, c];
+        update({ concerns: next });
+      };
+      return (
+        <div className="space-y-10">
+          <h2 className="font-display text-5xl md:text-6xl leading-tight">
+            A few last <span className="font-italic-display text-[#000000]">preferences</span>.
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div><FieldLabel>Hotel preference</FieldLabel>
+              <TextInput value={survey.hotelPref} onChange={(v) => update({ hotelPref: v })} placeholder="Boutique, central, quiet…" /></div>
+            <div><FieldLabel>Flight preference</FieldLabel>
+              <TextInput value={survey.flightPref} onChange={(v) => update({ flightPref: v })} placeholder="Direct, economy, morning departure…" /></div>
+          </div>
+          <div>
+            <FieldLabel>Need help with visa?</FieldLabel>
+            <div className="flex gap-2 flex-wrap">
+              <Pill active={survey.visaHelp === true} onClick={() => update({ visaHelp: true })}>Yes</Pill>
+              <Pill active={survey.visaHelp === false} onClick={() => update({ visaHelp: false })}>No, I'm covered</Pill>
+            </div>
+          </div>
+          <div>
+            <FieldLabel>Anything to flag?</FieldLabel>
+            <div className="flex flex-wrap gap-2">
+              {["Safety concern", "Dietary needs", "Accessibility", "Language barrier"].map((c) => (
+                <Pill key={c} active={survey.concerns.includes(c)} onClick={() => toggleConcern(c)}>{c}</Pill>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       GENERATING
+       ========================================================= */
+    function Generating() {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6 anim-fade">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#000000] mx-auto mb-6" />
+            <h2 className="font-display text-5xl mb-3">
+              Drawing your <span className="font-italic-display text-[#000000]">roadmap</span>…
+            </h2>
+            <div className="text-sm text-[#000000]/60 space-y-1 mt-6">
+              <p className="anim-fade" style={{ animationDelay: "0ms" }}>Checking visa requirements for India → Japan…</p>
+              <p className="anim-fade" style={{ animationDelay: "300ms" }}>Sketching 5 stages and 36 sub-tasks…</p>
+              <p className="anim-fade" style={{ animationDelay: "600ms" }}>Drafting Day 1 to Day 10…</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       MAIN APP SHELL
+       ========================================================= */
+    function Main(props) {
+      const { survey, progress, doneTasks, totalTasks, activeView, setActiveView, onRestart } = props;
+      return (
+        <div className="anim-fade">
+          <header className="sticky top-0 z-30 bg-[#FFFFFF]/85 backdrop-blur-md border-b border-[#000000]/10">
+            <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-[#000000] text-[#FFFFFF] flex items-center justify-center shrink-0">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs tracking-micro uppercase text-[#000000]/50">Roadmap</div>
+                  <div className="font-display text-xl truncate">{survey.destination}</div>
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-1 bg-[#000000]/5 rounded-full p-1">
+                <ViewToggle active={activeView === "roadmap"} onClick={() => setActiveView("roadmap")} icon={Map}>Roadmap</ViewToggle>
+                <ViewToggle active={activeView === "itinerary"} onClick={() => setActiveView("itinerary")} icon={Calendar}>Itinerary</ViewToggle>
+              </div>
+              <button onClick={onRestart} className="text-xs tracking-micro uppercase text-[#000000]/50 hover:text-[#000000] transition">
+                Restart
+              </button>
+            </div>
+            <div className="max-w-5xl mx-auto px-6 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-[#000000]/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#000000] transition-all duration-500" style={{ width: `${progress}%` }} />
+                </div>
+                <span className="text-xs tracking-micro uppercase text-[#000000]/60 tabular-nums">
+                  {doneTasks}/{totalTasks} · {progress}%
+                </span>
+              </div>
+            </div>
+          </header>
+
+          <div className="sm:hidden max-w-5xl mx-auto px-6 mt-4 flex items-center gap-1 bg-[#000000]/5 rounded-full p-1 w-fit">
+            <ViewToggle active={activeView === "roadmap"} onClick={() => setActiveView("roadmap")} icon={Map}>Roadmap</ViewToggle>
+            <ViewToggle active={activeView === "itinerary"} onClick={() => setActiveView("itinerary")} icon={Calendar}>Itinerary</ViewToggle>
+          </div>
+
+          <main className="max-w-5xl mx-auto px-6 py-10">
+            {activeView === "roadmap" ? <RoadmapView {...props} /> : <ItineraryView {...props} />}
+          </main>
+          <Footer />
+        </div>
+      );
+    }
+
+    function ViewToggle({ active, onClick, icon: Icon, children }) {
+      return (
+        <button onClick={onClick}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs tracking-wide transition ${
+            active ? "bg-[#000000] text-[#FFFFFF]" : "text-[#000000]/60 hover:text-[#000000]"
+          }`}>
+          <Icon className="w-3.5 h-3.5" />{children}
+        </button>
+      );
+    }
+
+    /* =========================================================
+       ROADMAP VIEW
+       ========================================================= */
+    function RoadmapView(props) {
+      const { stages, expandedStage, setExpandedStage, survey } = props;
+      const nextStage = stages.find((s) => !s.locked && s.status !== "completed");
+      return (
+        <div>
+          <div className="mb-10">
+            <div className="text-xs tracking-micro uppercase text-[#000000]/50 mb-2">Your trip in 5 stages</div>
+            <h1 className="font-display text-5xl md:text-6xl leading-tight mb-4">
+              {survey.tripLength} days in {survey.destination.split("—")[0].trim()},<br />
+              <span className="font-italic-display text-[#000000]">starting {survey.startDate}.</span>
+            </h1>
+            <div className="flex flex-wrap gap-3 text-sm text-[#000000]/70">
+              <Tag icon={Users}>{survey.party}</Tag>
+              <Tag icon={Wallet}>{survey.budget} · ${survey.budgetAmount}</Tag>
+              {survey.styles.map((s) => <Tag key={s} icon={Heart}>{s}</Tag>)}
+            </div>
+          </div>
+
+          {nextStage && <NextActionBanner stage={nextStage} onJump={() => setExpandedStage(nextStage.id)} />}
+
+          <div className="relative mt-10">
+            <div className="absolute left-[15px] top-3 bottom-3 w-px"
+              style={{ backgroundImage: "linear-gradient(to bottom, rgba(0,0,0,0.3) 50%, transparent 50%)",
+                backgroundSize: "1px 8px", backgroundRepeat: "repeat-y" }} />
+            <div className="space-y-4">
+              {stages.map((stage) => (
+                <StageCard key={stage.id} stage={stage}
+                  expanded={expandedStage === stage.id}
+                  onToggle={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
+                  {...props} />
+              ))}
+            </div>
+          </div>
+          <Disclaimer />
+        </div>
+      );
+    }
+
+    function Tag({ icon: Icon, children }) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#000000]/5 text-xs">
+          <Icon className="w-3 h-3" />{children}
+        </span>
+      );
+    }
+
+    function NextActionBanner({ stage, onJump }) {
+      const StageIcon = stage.icon;
+      const nextTask = stage.tasks.find((t) => !t.done);
+      return (
+        <div className="bg-[#000000] text-[#FFFFFF] rounded-2xl p-5 flex items-center justify-between gap-4 anim-fade">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-[#FFFFFF] text-[#000000] flex items-center justify-center shrink-0">
+              <StageIcon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs tracking-micro uppercase text-[#FFFFFF]/60 mb-0.5">Next recommended action</div>
+              <div className="font-display text-xl truncate">{nextTask ? nextTask.title : `Continue ${stage.title}`}</div>
+            </div>
+          </div>
+          <button onClick={onJump} className="flex items-center gap-2 bg-[#FFFFFF] text-[#000000] px-4 py-2 rounded-full text-sm hover:bg-[#FFFFFF]/85 transition shrink-0">
+            Open <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       STAGE CARD
+       ========================================================= */
+    function StageCard({ stage, expanded, onToggle, ...props }) {
+      const StageIcon = stage.icon;
+      const completed = stage.tasks.filter((t) => t.done).length;
+      const total = stage.tasks.length;
+      const stagePct = total ? Math.round((completed / total) * 100) : 0;
+      const statusStyles = {
+        completed: "bg-[#000000] text-white",
+        "in-progress": "bg-white text-[#000000] border border-[#000000]",
+        "user-verified": "bg-[#000000] text-white italic",
+        "not-started": "bg-[#000000]/10 text-[#000000]/70",
+        locked: "bg-[#000000]/5 text-[#000000]/40",
+      };
+
+      return (
+        <div className="relative pl-12">
+          <div className={`absolute left-0 top-3 w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-medium z-10 transition ${
+            stage.status === "completed" ? "bg-[#000000] text-white border-[#000000]"
+            : stage.status === "in-progress" ? "bg-[#FFFFFF] text-[#000000] border-[#000000]"
+            : stage.locked ? "bg-[#FFFFFF] text-[#000000]/40 border-[#000000]/20"
+            : "bg-[#FFFFFF] text-[#000000] border-[#000000]/40"
+          }`}>
+            {stage.status === "completed" ? <Check className="w-4 h-4" /> : stage.locked ? <Lock className="w-3.5 h-3.5" /> : stage.number}
+          </div>
+
+          <div className={`bg-white rounded-2xl border border-[#000000]/10 overflow-hidden transition-all ${
+            expanded ? "shadow-[0_8px_30px_-12px_rgba(0,0,0,0.25)]" : "hover:border-[#000000]/20"
+          } ${stage.locked ? "opacity-70" : ""}`}>
+            <button onClick={onToggle} className="w-full text-left p-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-[#FFFFFF] border border-[#000000]/10 flex items-center justify-center shrink-0">
+                  <StageIcon className="w-4 h-4 text-[#000000]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-display text-2xl leading-tight">{stage.title}</h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full tracking-micro uppercase ${statusStyles[stage.status]}`}>
+                      {stage.status.replace("-", " ")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#000000]/60 truncate">{stage.subtitle} · {stage.duration}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {!stage.locked && total > 0 && (
+                  <div className="hidden sm:flex items-center gap-2">
+                    <div className="w-16 h-1 bg-[#000000]/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#000000]" style={{ width: `${stagePct}%` }} />
+                    </div>
+                    <span className="text-xs tabular-nums text-[#000000]/60">{completed}/{total}</span>
+                  </div>
+                )}
+                <ChevronDown className={`w-4 h-4 text-[#000000]/40 transition ${expanded ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+
+            {expanded && (
+              <div className="border-t border-[#000000]/10 p-5 anim-fade">
+                <p className="text-sm text-[#000000]/70 leading-relaxed mb-5">{stage.blurb}</p>
+                {stage.locked ? <LockedState stage={stage} {...props} />
+                 : stage.tripStage ? <TripStageInline {...props} />
+                 : stage.bookingStage ? <BookingStage stage={stage} {...props} />
+                 : <TaskList stage={stage} {...props} />}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function LockedState({ stage, overrideUnlock }) {
+      return (
+        <div className="bg-[#FFFFFF] rounded-xl p-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Lock className="w-4 h-4 text-[#000000]/50 shrink-0" />
+            <p className="text-sm text-[#000000]/70 italic">{stage.unlockReason}</p>
+          </div>
+          <button onClick={() => overrideUnlock(stage.id)} className="text-xs tracking-micro uppercase text-[#000000] hover:underline whitespace-nowrap">
+            Override & unlock
+          </button>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       TASK LIST
+       ========================================================= */
+    function TaskList({ stage, toggleTask }) {
+      return (
+        <ul className="space-y-1.5">
+          {stage.tasks.map((task) => (
+            <TaskRow key={task.id} task={task} onToggle={() => toggleTask(stage.id, task.id)} />
+          ))}
+        </ul>
+      );
+    }
+
+    function TaskRow({ task, onToggle }) {
+      const isConfirm = task.type === "confirm";
+      const isLink = task.type === "link";
+      const isWarn = task.type === "warn";
+
+      if (isConfirm) {
+        return (
+          <li className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#000000]/[0.03] border border-dashed border-[#000000]/15">
+            <div className="flex items-center gap-3 min-w-0">
+              <ShieldCheck className={`w-4 h-4 shrink-0 ${task.done ? "text-[#000000]" : "text-[#000000]"}`} />
+              <span className={`text-sm ${task.done ? "text-[#000000]/50 line-through" : "text-[#000000]"}`}>{task.title}</span>
+            </div>
+            <button onClick={onToggle}
+              className={`text-xs tracking-wide px-3 py-1.5 rounded-full transition shrink-0 ${
+                task.done ? "bg-white text-[#000000] border border-[#000000] italic" : "bg-[#000000] text-[#FFFFFF] hover:bg-[#000000]/80"
+              }`}>
+              {task.done ? "Verified" : "I confirm"}
+            </button>
+          </li>
+        );
+      }
+
+      return (
+        <li>
+          <button onClick={onToggle} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#000000]/[0.03] transition text-left">
+            {task.done ? <CheckCircle2 className="w-4 h-4 text-[#000000] shrink-0" /> : <Circle className="w-4 h-4 text-[#000000]/30 shrink-0" />}
+            <span className={`text-sm flex-1 ${task.done ? "text-[#000000]/50 line-through" : ""}`}>{task.title}</span>
+            {isLink && <ExternalLink className="w-3.5 h-3.5 text-[#000000]/40" />}
+            {isWarn && <AlertCircle className="w-3.5 h-3.5 text-[#000000]" />}
+          </button>
+        </li>
+      );
+    }
+
+    /* =========================================================
+       BOOKING STAGE
+       ========================================================= */
+    function BookingStage({ stage, bookingMode, setBookingMode, agentRunning, setAgentRunning, ...rest }) {
+      const mode = bookingMode[stage.id] || "manual";
+      const setMode = (m) => setBookingMode((prev) => ({ ...prev, [stage.id]: m }));
+      return (
+        <div>
+          <div className="flex items-center gap-1 bg-[#FFFFFF] rounded-full p-1 w-fit mb-5">
+            <ModeBtn active={mode === "manual"} onClick={() => setMode("manual")} icon={Hand}>Manual</ModeBtn>
+            <ModeBtn active={mode === "agent"} onClick={() => setMode("agent")} icon={Bot}>Agent mode</ModeBtn>
+          </div>
+          {mode === "manual" ? <ManualBookingPanel stage={stage} {...rest} />
+            : <AgentBookingPanel stage={stage} agentRunning={agentRunning} setAgentRunning={setAgentRunning} {...rest} />}
+          <div className="mt-5">
+            <ul className="space-y-1.5">
+              {stage.tasks.filter((t) => t.type === "confirm").map((task) => (
+                <TaskRow key={task.id} task={task} onToggle={() => rest.toggleTask(stage.id, task.id)} />
+              ))}
+            </ul>
+          </div>
+        </div>
+      );
+    }
+
+    function ModeBtn({ active, onClick, icon: Icon, children }) {
+      return (
+        <button onClick={onClick}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs tracking-wide transition ${
+            active ? "bg-[#000000] text-[#FFFFFF]" : "text-[#000000]/60 hover:text-[#000000]"
+          }`}>
+          <Icon className="w-3.5 h-3.5" />{children}
+        </button>
+      );
+    }
+
+    function ManualBookingPanel({ stage }) {
+      const isFlight = stage.id === "flight";
+      const steps = isFlight
+        ? [
+            { label: "Search on", value: "Skyscanner, Google Flights, ITA Matrix" },
+            { label: "Filter by", value: "1 stop max · ≥ 2h layover · 23kg checked" },
+            { label: "Verify", value: "Baggage, seat selection fee, change policy" },
+            { label: "Watch for", value: "Codeshares with mismatched baggage rules" },
+            { label: "Before paying", value: "Name spelling matches passport exactly" },
+          ]
+        : [
+            { label: "Search on", value: "Booking.com, Agoda, hotel direct site" },
+            { label: "Filter by", value: "Free cancellation · 8.5+ rating · ≤10 min from station" },
+            { label: "Verify", value: "Cancellation deadline, breakfast included, AC type" },
+            { label: "Watch for", value: "Resort fees, deposits, late check-in cutoff" },
+            { label: "Before paying", value: "Read 5 recent reviews from past 30 days" },
+          ];
+      return (
+        <div className="bg-[#FFFFFF] rounded-xl p-5">
+          <div className="text-xs tracking-micro uppercase text-[#000000]/50 mb-3">
+            <Hand className="w-3.5 h-3.5 inline mr-1" /> Manual booking · step-by-step
+          </div>
+          <ol className="space-y-2.5">
+            {steps.map((s, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="font-display text-xl text-[#000000] leading-none shrink-0 w-5">{i + 1}</span>
+                <div>
+                  <span className="text-xs tracking-micro uppercase text-[#000000]/50">{s.label}</span>
+                  <div className="text-sm text-[#000000]">{s.value}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      );
+    }
+
+    function AgentBookingPanel({ stage, agentRunning, setAgentRunning }) {
+      const [revealed, setRevealed] = useState(false);
+      const isFlight = stage.id === "flight";
+      const options = isFlight ? MOCK_FLIGHTS : MOCK_HOTELS;
+      const runAgent = () => {
+        setAgentRunning(true);
+        setRevealed(false);
+        setTimeout(() => { setAgentRunning(false); setRevealed(true); }, 1400);
+      };
+      return (
+        <div className="bg-[#FFFFFF] rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <div className="text-xs tracking-micro uppercase text-[#000000]/50">
+              <Bot className="w-3.5 h-3.5 inline mr-1" /> Agent mode · simulated
+            </div>
+            {!revealed && (
+              <button onClick={runAgent} disabled={agentRunning}
+                className="flex items-center gap-2 bg-[#000000] text-[#FFFFFF] px-3 py-1.5 rounded-full text-xs hover:bg-[#000000]/80 transition disabled:opacity-60">
+                {agentRunning ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching</>)
+                              : (<><Sparkles className="w-3.5 h-3.5" /> Run agent</>)}
+              </button>
+            )}
+          </div>
+          {!revealed && !agentRunning && (
+            <p className="text-sm text-[#000000]/60 italic">
+              The agent will search, compare, and surface 3 options. It never books or pays — final approval is yours.
+            </p>
+          )}
+          {agentRunning && (
+            <div className="space-y-1.5 text-sm text-[#000000]/70">
+              <p className="anim-fade">→ Querying live inventory…</p>
+              <p className="anim-fade" style={{ animationDelay: "300ms" }}>→ Filtering by your preferences…</p>
+              <p className="anim-fade" style={{ animationDelay: "600ms" }}>→ Ranking by tradeoffs…</p>
+            </div>
+          )}
+          {revealed && (
+            <div className="space-y-3 anim-fade">
+              {options.map((opt, i) => (
+                <div key={i} className="bg-white rounded-xl p-4 border border-[#000000]/10">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <span className={`inline-block text-[10px] tracking-micro uppercase px-2 py-0.5 rounded-full mb-1.5 ${
+                        opt.tag === "Best value" || opt.tier === "Mid"
+                          ? "bg-[#000000] text-white" : "bg-[#000000]/10 text-[#000000]/70"
+                      }`}>{opt.tag || opt.tier}</span>
+                      <div className="font-display text-xl truncate">{opt.airline || opt.name}</div>
+                      <div className="text-xs text-[#000000]/60 mt-0.5">
+                        {isFlight ? `${opt.duration} · ${opt.stops}` : `${opt.area} · ${opt.walk} · ★ ${opt.rating}`}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-display text-2xl">${opt.price}</div>
+                      <div className="text-[10px] tracking-micro uppercase text-[#000000]/50">
+                        {isFlight ? "round-trip" : "/ night"}
+                      </div>
+                    </div>
+                  </div>
+                  <p className={`text-xs italic ${opt.warn ? "text-[#000000]" : "text-[#000000]/60"} flex items-start gap-1.5`}>
+                    {opt.warn && <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
+                    {opt.note || opt.cxl}
+                  </p>
+                </div>
+              ))}
+              <div className="bg-[#000000] text-[#FFFFFF] rounded-xl p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <Eye className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <strong className="font-medium">Review before booking.</strong>{" "}
+                    <span className="text-[#FFFFFF]/80">
+                      The agent has prepared options. It will not pay or book — open the airline/hotel site yourself, paste the
+                      flight/dates, and confirm everything matches before you pay.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function TripStageInline({ setActiveView }) {
+      return (
+        <div className="bg-[#FFFFFF] rounded-xl p-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Calendar className="w-4 h-4 text-[#000000] shrink-0" />
+            <p className="text-sm text-[#000000]/70">
+              Your day-by-day plan is ready. Open it as a daily assistant — morning, afternoon, evening, with backup plans.
+            </p>
+          </div>
+          <button onClick={() => setActiveView("itinerary")}
+            className="flex items-center gap-2 bg-[#000000] text-[#FFFFFF] px-4 py-2 rounded-full text-sm hover:bg-[#000000]/80 transition shrink-0">
+            Open itinerary <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       ITINERARY VIEW
+       ========================================================= */
+    function ItineraryView({ selectedDay, setSelectedDay, survey }) {
+      const day = MOCK_DAYS.find((d) => d.day === selectedDay) || MOCK_DAYS[0];
+      const allItems = day.blocks.flatMap((b) => b.items);
+      const totalDays = survey.tripLength;
+      return (
+        <div>
+          <div className="mb-8">
+            <div className="text-xs tracking-micro uppercase text-[#000000]/50 mb-3">{totalDays}-day itinerary</div>
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+              {Array.from({ length: totalDays }, (_, i) => i + 1).map((d) => {
+                const hasContent = MOCK_DAYS.find((md) => md.day === d);
+                const active = selectedDay === d;
+                return (
+                  <button key={d} onClick={() => hasContent && setSelectedDay(d)} disabled={!hasContent}
+                    className={`shrink-0 w-14 h-16 rounded-xl border flex flex-col items-center justify-center transition ${
+                      active ? "bg-[#000000] text-[#FFFFFF] border-[#000000]"
+                      : hasContent ? "bg-white border-[#000000]/10 text-[#000000] hover:border-[#000000]/40"
+                      : "bg-transparent border-[#000000]/10 text-[#000000]/30 cursor-not-allowed"
+                    }`}>
+                    <span className="text-[10px] tracking-micro uppercase opacity-60">Day</span>
+                    <span className="font-display text-2xl leading-none">{d}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <div className="text-xs tracking-micro uppercase text-[#000000]/50 mb-2">Day {day.day} · {day.label}</div>
+            <h2 className="font-display text-4xl md:text-5xl leading-tight mb-3">
+              {day.title.charAt(0).toUpperCase() + day.title.slice(1)}
+            </h2>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <Tag icon={Cloud}>{day.weather}</Tag>
+              <Tag icon={Wallet}>${day.spent} / ${day.estimated} est.</Tag>
+              <Tag icon={Footprints}>{allItems.length} stops</Tag>
+            </div>
+            {day.notes && <p className="mt-4 text-sm text-[#000000]/70 italic border-l-2 border-[#000000] pl-3">{day.notes}</p>}
+          </div>
+
+          <DailyAssistantStrip day={day} />
+
+          <div className="space-y-8 mt-8">
+            {day.blocks.map((block, i) => <DayBlock key={i} block={block} />)}
+          </div>
+          <Disclaimer />
+        </div>
+      );
+    }
+
+    function DailyAssistantStrip({ day }) {
+      const items = [
+        { icon: Sparkles, label: "Next up", value: day.blocks[0].items[0].title.split(" — ")[0] },
+        { icon: Cloud, label: "If it rains", value: "TeamLab Planets · indoor, ~2hrs" },
+        { icon: Utensils, label: "Food nearby", value: "Ichiran · Uobei · Tendon Tenya" },
+        { icon: Shield, label: "Safety", value: "Police box at Shibuya station" },
+      ];
+      return (
+        <div className="bg-white rounded-2xl border border-[#000000]/10 p-5">
+          <div className="text-xs tracking-micro uppercase text-[#000000]/50 mb-4">Daily assistant</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {items.map(({ icon: Icon, label, value }) => (
+              <div key={label}>
+                <div className="flex items-center gap-1.5 text-xs text-[#000000]/50 mb-1">
+                  <Icon className="w-3.5 h-3.5" />{label}
+                </div>
+                <div className="text-sm font-medium text-[#000000] leading-tight">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function DayBlock({ block }) {
+      const Icon = block.icon;
+      return (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <Icon className="w-4 h-4 text-[#000000]" />
+            <h3 className="font-display text-2xl">{block.period}</h3>
+            <div className="flex-1 h-px bg-[#000000]/10 ml-2" />
+          </div>
+          <div className="space-y-3 pl-1">
+            {block.items.map((item, i) => <DayTaskCard key={i} item={item} />)}
+          </div>
+        </div>
+      );
+    }
+
+    function DayTaskCard({ item }) {
+      const [done, setDone] = useState(false);
+      const [showBackup, setShowBackup] = useState(false);
+      return (
+        <div className={`bg-white rounded-xl border border-[#000000]/10 p-4 transition ${done ? "opacity-60" : ""}`}>
+          <div className="flex items-start gap-4">
+            <div className="text-right shrink-0 pt-0.5">
+              <div className="font-display text-lg leading-none tabular-nums">{item.time}</div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className={`font-medium text-[#000000] mb-1 ${done ? "line-through" : ""}`}>{item.title}</h4>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#000000]/60 mb-2">
+                <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{item.location}</span>
+                {item.transport !== "—" && <span className="flex items-center gap-1"><Train className="w-3 h-3" />{item.transport}</span>}
+                <span className="flex items-center gap-1"><Wallet className="w-3 h-3" />${item.cost}</span>
+              </div>
+              {item.notes && <p className="text-xs text-[#000000]/60 italic">{item.notes}</p>}
+              {item.backup && (
+                <div className="mt-2">
+                  <button onClick={() => setShowBackup(!showBackup)} className="text-xs text-[#000000] flex items-center gap-1 hover:underline">
+                    <ChevronRight className={`w-3 h-3 transition ${showBackup ? "rotate-90" : ""}`} />
+                    Backup plan
+                  </button>
+                  {showBackup && <p className="text-xs text-[#000000]/70 mt-1.5 pl-4 border-l border-[#000000]/30">{item.backup}</p>}
+                </div>
+              )}
+            </div>
+            <button onClick={() => setDone(!done)}
+              className={`shrink-0 w-7 h-7 rounded-full border flex items-center justify-center transition ${
+                done ? "bg-[#000000] border-[#000000] text-white" : "border-[#000000]/20 hover:border-[#000000]"
+              }`}>
+              {done && <Check className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* =========================================================
+       FOOTER & DISCLAIMER
+       ========================================================= */
+    function Disclaimer() {
+      return (
+        <div className="mt-10 pt-6 border-t border-[#000000]/10 text-xs text-[#000000]/50 leading-relaxed space-y-1.5">
+          <p><strong className="text-[#000000]/70">Visa rules</strong> must always be verified on official government / embassy / VFS websites.</p>
+          <p><strong className="text-[#000000]/70">Prices and availability</strong> are indicative and change continuously.</p>
+          <p><strong className="text-[#000000]/70">Agent mode is simulated</strong> in this prototype. Even in production, the app never books or pays without your explicit confirmation.</p>
+        </div>
+      );
+    }
+
+    function Footer() {
+      return (
+        <footer className="border-t border-[#000000]/10 mt-16">
+          <div className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-[#000000]/40">
+            <span className="font-display text-base">Roadmap</span>
+            <span className="tracking-micro uppercase">Prototype · v0.1</span>
+          </div>
+        </footer>
+      );
+    }
+
+    // Mount + remove the boot loader
+    const boot = document.getElementById("boot");
+    if (boot) boot.remove();
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
